@@ -1,0 +1,13 @@
+{
+  "forms": {
+    "contact": {
+      "name": "DMA Maintenance Contact Form",
+      "actions": [
+        {
+          "type": "email",
+          "to": "dmamaintenance.lk@gmail.com"
+        }
+      ]
+    }
+  }
+}
