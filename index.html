@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -1522,7 +1522,7 @@
   if (firstFaq) firstFaq.classList.add('open');
 
   // -- GALLERY SLIDER --
-  (function() {
+  function initSlider() {
     const track = document.getElementById('gallTrack');
     const slides = track.querySelectorAll('.gallery-slide');
     const dotsWrap = document.getElementById('gallDots');
@@ -1541,16 +1541,30 @@
     }
     function goTo(n) {
       current = (n + total()) % total();
+      if (slides.length === 0) return;
       const slideW = slides[0].offsetWidth + 20;
       track.style.transform = `translateX(-${current * visible() * slideW}px)`;
       dotsWrap.querySelectorAll('.gallery-dot').forEach((d, i) => d.classList.toggle('active', i === current));
     }
-    document.getElementById('gallPrev').addEventListener('click', () => goTo(current - 1));
-    document.getElementById('gallNext').addEventListener('click', () => goTo(current + 1));
+    
+    // Clear old event listeners by cloning the buttons
+    const prevBtn = document.getElementById('gallPrev');
+    const nextBtn = document.getElementById('gallNext');
+    if (prevBtn && nextBtn) {
+      const newPrev = prevBtn.cloneNode(true);
+      const newNext = nextBtn.cloneNode(true);
+      prevBtn.parentNode.replaceChild(newPrev, prevBtn);
+      nextBtn.parentNode.replaceChild(newNext, nextBtn);
+      newPrev.addEventListener('click', () => goTo(current - 1));
+      newNext.addEventListener('click', () => goTo(current + 1));
+    }
+    
     window.addEventListener('resize', () => { current = 0; buildDots(); goTo(0); });
     buildDots();
+    
     // Auto-advance
-    setInterval(() => goTo(current + 1), 4000);
+    if (window.galleryInterval) clearInterval(window.galleryInterval);
+    window.galleryInterval = setInterval(() => goTo(current + 1), 4000);
 
     // Lightbox
     const lb = document.getElementById('lightbox');
@@ -1558,15 +1572,107 @@
     const lbCaption = document.getElementById('lbCaption');
     const gallImgs = Array.from(slides).map(s => ({ src: s.querySelector('img').src, cap: s.querySelector('.gallery-slide-label')?.textContent || '' }));
     let lbIdx = 0;
-    function openLb(idx) { lbIdx = idx; lbImg.src = gallImgs[idx].src; lbCaption.textContent = gallImgs[idx].cap; lb.classList.add('open'); document.body.style.overflow = 'hidden'; }
-    function closeLb() { lb.classList.remove('open'); document.body.style.overflow = ''; }
+    
+    function openLb(idx) { 
+      lbIdx = idx; 
+      lbImg.src = gallImgs[idx].src; 
+      lbCaption.textContent = gallImgs[idx].cap; 
+      lb.classList.add('open'); 
+      document.body.style.overflow = 'hidden'; 
+    }
+    function closeLb() { 
+      lb.classList.remove('open'); 
+      document.body.style.overflow = ''; 
+    }
+    
     slides.forEach((s, i) => s.addEventListener('click', () => openLb(i)));
-    document.getElementById('lbClose').addEventListener('click', closeLb);
-    document.getElementById('lbPrev').addEventListener('click', () => openLb((lbIdx - 1 + gallImgs.length) % gallImgs.length));
-    document.getElementById('lbNext').addEventListener('click', () => openLb((lbIdx + 1) % gallImgs.length));
-    lb.addEventListener('click', e => { if (e.target === lb) closeLb(); });
-    document.addEventListener('keydown', e => { if (!lb.classList.contains('open')) return; if (e.key === 'Escape') closeLb(); if (e.key === 'ArrowLeft') openLb((lbIdx - 1 + gallImgs.length) % gallImgs.length); if (e.key === 'ArrowRight') openLb((lbIdx + 1) % gallImgs.length); });
-  })();
+    
+    // Clear old event listeners for lightbox controls
+    const lbClose = document.getElementById('lbClose');
+    const lbPrev = document.getElementById('lbPrev');
+    const lbNext = document.getElementById('lbNext');
+    
+    if (lbClose && lbPrev && lbNext) {
+      const newLbClose = lbClose.cloneNode(true);
+      const newLbPrev = lbPrev.cloneNode(true);
+      const newLbNext = lbNext.cloneNode(true);
+      
+      lbClose.parentNode.replaceChild(newLbClose, lbClose);
+      lbPrev.parentNode.replaceChild(newLbPrev, lbPrev);
+      lbNext.parentNode.replaceChild(newLbNext, lbNext);
+      
+      newLbClose.addEventListener('click', closeLb);
+      newLbPrev.addEventListener('click', () => openLb((lbIdx - 1 + gallImgs.length) % gallImgs.length));
+      newLbNext.addEventListener('click', () => openLb((lbIdx + 1) % gallImgs.length));
+    }
+    
+    if (lb) {
+      lb.addEventListener('click', e => { if (e.target === lb) closeLb(); });
+    }
+    
+    if (window.lbKeyHandler) document.removeEventListener('keydown', window.lbKeyHandler);
+    window.lbKeyHandler = e => { 
+      if (!lb.classList.contains('open')) return; 
+      if (e.key === 'Escape') closeLb(); 
+      if (e.key === 'ArrowLeft') openLb((lbIdx - 1 + gallImgs.length) % gallImgs.length); 
+      if (e.key === 'ArrowRight') openLb((lbIdx + 1) % gallImgs.length); 
+    };
+    document.addEventListener('keydown', window.lbKeyHandler);
+  }
+
+  const FOLDER_ID = '1rnIANQmEJR_GD4ruiLHDPYGyw2S-D0BR';
+  const API_KEY = 'AIzaSyDrhKOOl2MKpphpsFJqWWax74x6QZFxepA';
+
+  async function fetchHomeProjects() {
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+mimeType+contains+'image/'&key=${API_KEY}&fields=files(id,name,createdTime,thumbnailLink)&orderBy=createdTime+desc&pageSize=15`);
+      const data = await res.json();
+      const track = document.getElementById('gallTrack');
+      
+      if (data.files && data.files.length > 0) {
+        track.innerHTML = ''; // Clear fallback Unsplash images
+        
+        data.files.forEach((file, idx) => {
+          let rawTitle = file.name.replace(/\.[^/.]+$/, ""); // remove extension
+          let baseTitle = rawTitle.replace(/[\s\-_]*\d+$/, "").trim();
+          if (!baseTitle) baseTitle = rawTitle;
+          baseTitle = baseTitle.replace(/-/g, ' ').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+          // Determine category/tag
+          let tag = 'General';
+          const lowerTitle = baseTitle.toLowerCase();
+          if (lowerTitle.includes('plumb')) tag = 'Plumbing';
+          else if (lowerTitle.includes('electr') || lowerTitle.includes('wir')) tag = 'Electrical';
+          else if (lowerTitle.includes('partit')) tag = 'Partition';
+          else if (lowerTitle.includes('cctv') || lowerTitle.includes('camera')) tag = 'CCTV';
+          else if (lowerTitle.includes('weld') || lowerTitle.includes('gate')) tag = 'Welding';
+          else if (lowerTitle.includes('appliances') || lowerTitle.includes('service') || lowerTitle.includes('repair')) tag = 'Appliance Service';
+
+          // Use the high-res thumbnail link
+          const imgSrc = file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+$/, '=s1000') : `https://lh3.googleusercontent.com/d/${file.id}=s1000`;
+          
+          const slideHtml = `
+            <div class="gallery-slide" data-idx="${idx}">
+              <img src="${imgSrc}" alt="${baseTitle}" loading="lazy"/>
+              <div class="gallery-slide-overlay">
+                <div>
+                  <div class="gallery-slide-tag">${tag}</div>
+                  <div class="gallery-slide-label">${baseTitle}</div>
+                </div>
+              </div>
+            </div>
+`;
+          track.insertAdjacentHTML('beforeend', slideHtml);
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching home gallery from Drive:', err);
+    } finally {
+      initSlider();
+    }
+  }
+
+  fetchHomeProjects();
 
   // -- TESTIMONIALS SLIDER --
   (function() {

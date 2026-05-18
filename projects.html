@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -186,7 +186,7 @@
           imagesHtml += `<div class="${wrapperClass}">`;
           group.images.forEach(imgFile => {
             // Use thumbnailLink for reliable embedding and replace size param for high res
-            const imgSrc = `https://drive.google.com/uc?export=view&id=${imgFile.id}`;
+            const imgSrc = imgFile.thumbnailLink ? imgFile.thumbnailLink.replace(/=s\d+$/, '=s1000') : `https://lh3.googleusercontent.com/d/${imgFile.id}=s1000`;
             imagesHtml += `<img src="${imgSrc}" alt="${title}" class="timeline-image" loading="lazy">`;
           });
           imagesHtml += `</div>`;
